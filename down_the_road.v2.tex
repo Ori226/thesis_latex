@@ -1,0 +1,241 @@
+\documentclass[]{report}
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.3em}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+
+% Title Page
+\title{Using LSTM for P300 detection and P300 speller}
+\author{}
+
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+	In this report I will summarize the work I conducted when trying to use LSTM for  P-300 speller classification task .
+\end{abstract}
+
+
+
+\section{Motivation}
+There are various methods of using machine learning to solve the P-300 speller classification task. None of these methods use Recurrent Neural Network. 
+
+In this report I will show my attempts of using LSTM for this task
+
+
+\subsection{The P-300 speller }
+\textit{taken from\cite{CNN_p300}}
+The P300 is an event-related potential (ERP) which can be recorded via EEG. The wave corresponds to positive deflection in voltage at a latency about 300 ms in the EEG. In other words, it means that after an event like a flashing light, a deflection in the signal should occur after 300ms. The detection of a P300 wave is equivalent to where the user was looking 300 ms before its detection. In a P300 speller, the main goal is to detect P300 peaks in the EEG accurately and instantly. The accuracy of this detection will unsure high information transfer rate between the user and the machine.
+
+
+
+\section{P300 detection - Two types of classification problem}
+There exists two types of classification for the problem of P300-based BCI:
+\begin{enumerate}
+	\item The detection of P300 response. It corresponds to a binary classification: one class represent signals that correspond to a P300 wave (i.e. target), the second class is the opposite (i.e. non-target). 
+	\item The character recognition. The output of the previous classification are then combined to classify the main classes of the application ( in this case the character). In the RSVP P-300 speller, the character is supposed to correspond to the intersection of the accumulation of several P300 waves. The best accumulation over multiple trials determines the desired character. 
+	
+In \cite{Blankertz}, the author focused only on the character recognition task. The first part of each experiment was used for training (i.e. calibration) and the other part were used for testing.
+
+\end{enumerate}
+\section{Database}
+
+
+The database includes 55 channels of EEG recordings from 12 subjects. Each subject is presented with 600 to 700 repetitions of 30 different letters and symbols. In total there is approximately 20,000 samples for each subject, 1/30 of them suppose to contain P300 wave. The interval between each presentation of the stimuli is 116ms.The exact method by which a single sample is extract from the complete EEG recording can be different between the experiments. For more detail, see \cite{Blankertz}.
+
+
+\section{Network Architecture} \label{netarch}
+The network has 4 layers. The first Layer-1 contains 20 or 100 hidden LSTM units. Layer-2 is a simple DropOut layer (i.e. a layer that randomly trun-off the activation of the previous layer in order to help avoid over fitting). Layer-3 is the same as layer -1.All the layers except from the layer-3 receive a sequence of time-series data and return a sequence of time-series. The last layer return the last state of the network and pass layer 4 which contains 2-cells. The two cells represent the probability of a sample to contain P300 (The sum of both cells is 1)
+
+\begin{figure*}[h]
+	\includegraphics[width=8cm]{"LSTM architecture -Binary_general"}
+	\caption{general structure of the LSTM layer}
+	\label{fig:RSVP}
+\end{figure*}
+
+
+
+\section{Experiments}
+
+
+
+\textit{In here I will describe the 4 experiments, currently without showing the exact results}
+
+
+
+
+During my attempts to use LSTM I conducted several experiments. The experiments shows that LSTM can be used both for the task of P300 identification and character recognition (although some find tuning is required). 
+
+The first experiment is meant LSTM can solve the to examine whether it possible to detect P-300 wave using LSMT. On the second experiment I test different method for using the LSTM the for character recognition task.
+
+
+It is important to emphasis that there is a lot of difference between testing only the P300 detection task and testing the character recognition task. Unlike the P300 detection task, in order to show that LSTM can be used as part of a real P300 BCI system, the LSTM model is always trained only on the first part of the recording (i.e. \cite{Blankertz} calibration phase]). This means that unlike other machine learning task, the model is trained in only on 1/3 of the data and is tested on the other 2/3. Training only on the first part of the recording pose another challenge: modelling the intra-subject variance across time (i.e. P300 wave will be very different when recording with a gap of 10 minutes from each other).
+
+\subsection{Experiment 1 P300 detection}
+
+In this experiment, equal number of target and non-target used as for training and testing. Since the number of target samples is only 1/30 from the number of non-target, only part of the non-target were selected randomly from the data. In this experiment, each sample was taken at the stimuli onset (i.e. time 0) until 400ms after it. Each 400ms sample is then normalized using z-score. Each sample is in a matrix of 55X80 (channels X timestamps). For evaluation I used 4-fold cross validation.
+
+The results can be see in  Fig\ref{fig:P300_detection}: and Table. \textit{bottom line: much better than chance}. 
+
+\begin{figure*}[h]
+	\includegraphics[width=14cm]{"P300DetectionAccuracy"}
+	\caption{P300 detection accuracy per subject}
+	\label{fig:P300_detection}
+\end{figure*}
+
+
+
+
+
+
+\subsection{Experiment 2 character recognition - estimation method}
+In here I will give a formal explanation about how a model is being evaluated for the task of character recognition. Unlike P300 identification, , the goal is to identify which one of the 30 sample contains P300. Each round of 30 symbols (i.e. the complete display of the AlphaBet in random order) is called \textit{Block} and is repeated for 10 times. The P300 prediction is then average \textbf{for each letter}.
+
+
+
+More formally:
+
+\newcommand{\argmin}{\operatornamewithlimits{argmin}}
+\[l\left( i \right) = \arg {\max _c}\left\{ {\sum\limits_{{x_r} \in {\rm{Repetition(c)}}}^{} {f\left( {\mathop x\nolimits_r^c } \right)} |c \in Alphabet} \right\}\]
+
+
+
+Where $l(i)$ denote the selected letter after repeating several time on the complete Alphabet and $f(x)$ denote the classifier result for the score.
+
+
+
+I conducted a set of experiment to identify how different variation in the training method and the network architecture affect the results. The method I used include the following properties:
+
+\begin{enumerate}
+	\item \textbf{The period of each sample relative to the stimuli onset}. The sample start 200ms before the stimuli onset and end 800ms after it. % maybe some explanation about the motivation
+	
+	\item \textbf{The number of hidden units} The network architecture is describe in section \ref{netarch}. I used the 20 units in each LSTM layer. % maybe some explanation about the motivation: regularazation vs model strength
+	
+
+	
+	\item \textbf{The subset of non-target samples used in the experiment}:	All the samples were used for the training. It is important to emphasis that since there are a lot more non-target samples, in this method, the training dataset is bias toward the non-target class. 
+	\item \textbf{The sampling rate}: I reduced the frequency to 25hz by averaging each 8 consecutive 8 samples.
+	\item \textbf{The positive samples weight in the loss function}: 
+	The original loss function in this experiment is the categorical cross entropy:
+	\begin{equation}\label{eq:2}
+	H(p,q) = - \sum_x p(x) \log(q(x))
+	\end{equation}
+	Where \textit{p} denote the sample's true label and \textit{q} the probability score as predicted by the classifier. During training, the goal of is to minimize the term in \eqref{eq:2}. In order to avoid the bias of the toward the bigger group of non-target samples, I have changed the weight of the non-target samples in the loss function:
+	\begin{equation}\label{eq:3}
+	H(p,q) = - \sum_x w_i*p(x) \log(q(x)) 
+	\end{equation}
+	I used a $w_i$ of 50 for the target samples and 1 for the non target.
+	
+	
+\end{enumerate}
+
+
+%\begin{equation}\label{eq:1}
+% \argmax_c f(c)=\{c \mid f(c) = \min_{c} f(x')\}
+%\end{equation}
+\subsection{classification results}
+
+%
+%\subsection{Experiment 2 character recognition version 1}
+%In this experiment, I took the same model and the same training method I used in the experiment 1 and use it for the character recognition task.
+%The results of this experiment can be seen in figure \textit{TBD}. 
+%
+%\textit{Experiment details:} The training data was taken from the first 1/3 of the experiment (\cite{Blankertz} calibration phase) and estimate the most probable character at each sequence of repetition as in Eq.ref{eq:1}. The testing was used on last 2/3 of  the experiments as in \cite{Blankertz}.
+
+
+\begin{figure*}[h]
+	\includegraphics[width=14cm]{"june_22_2016_char_rec"}
+	\caption{chacracter recognition results}
+	\label{fig:cahracter_rec}
+\end{figure*}
+
+
+
+
+\section{analyzing using the gradient}
+As suggested by \cite{AlexGraveBook}, the gradient of the neural network with respect to the input, can be a helpful tool in analysing the network. Input with high gradient value indicate that change in this input will result in a very different output (at least locally). By using these method, it seems that in opposed to non-recurrent network (i.e. feed-forward network), the LSTM network learned to focus only on small temporal interval of the input corresponding to the theory of P300. 
+
+
+\subsection{Gradient - reminder}
+\textit{\textbf{Taken from Wikipedia: } If $f(x1, ..., xn)$ is a differentiable, scalar-valued function, its gradient is the vector whose components are the n partial derivatives of f. It is thus a vector-valued function.}
+
+In our case of $f(x|\theta)$ is the neural network with fixed weights $\theta$ and input $x$. The partial derivatives of $f(x|\theta)$ with respect to $x$ can be interpreted as how changing each value of $x$ will change the prediction score. It is important not to confuse with the gradient used for the training where the goal is to  optimize the model parameters $\theta$ when $x$ is fixed.
+
+
+\subsection{The gradient of $f(x|\theta)$ for P300 prediction}
+In the case of P300 prediction, $x$ is a matrix of $C\times{T}$ ($C$ - number of channels, $T$ -  number of time steps) and $f(x|\theta)$ is the neural network where $\theta$ is the model's weights. The gradient $\nabla{f(x|\theta)}$ eq.\ref{eq:4} is a matrix in the same size as the input $x$, where the amplitude of each cell reflects its impact on the function value. Cells with high absolute value can be interpreted as the cells that most influence the prediction 
+function. 
+
+\begin{equation}\label{eq:4}
+\nabla f\left( {x|\theta } \right) = \left[ {\begin{array}{*{20}{c}}
+	{\frac{{\partial f\left( {x|\theta } \right)}}{{\partial x\left( {{c_1},{t_1}} \right)}}}&{...}&{\frac{{\partial f\left( {x|\theta } \right)}}{{\partial x\left( {{c_1},{t_T}} \right)}}}\\
+	{...}&{...}&{...}\\
+	{\frac{{\partial f\left( {x|\theta } \right)}}{{\partial x\left( {{c_C},{t_1}} \right)}}}&{...}&{\frac{{\partial f\left( {x|\theta } \right)}}{{\partial x\left( {{c_C},{t_T}} \right)}}}
+	\end{array}} \right]
+\end{equation}
+
+
+
+
+
+
+
+Figure fig.\ref{fig:gradient_example} show an the gradient of a trained LSTM network when feeding it with a specific raw EEG sample. 
+
+\begin{figure}
+	\includegraphics[width=14cm]{"gradient exmple"}
+	\caption{chacracter recognition results}
+	\label{fig:gradient_example}
+\end{figure}
+
+
+
+\subsection{Comparing between the Gradient of LSTM and MLP}
+I compared between the gradient of the LSTM network mentioned above and a similar feed forward network (the MLP network is described below). Figure fig:\ref{fig:gradient_mlp_vs_lstm} shows the average gradient of a single subject over all of its target samples. While LSTM gradient is focused on a relatively narrow time region, MLP gradient spread much more randomly. This may implies that LSTM had learn to model the P300 pattern in a way much simple to the abstract definition of P300- a peak occurring around 300ms from the stimuli presentation. Of course, this is only intuitive idea that need to be explored in order to get a solid conclusion. One thing that can be predicted from this gradient, is that LSTM may be more robust to jitter in time domain. The rational behind this prediction is that the gradient may prove that LSTM had learn the data dynamics regardless of its exact location in the time domain.
+
+
+
+
+\begin{figure}
+	\includegraphics[width=14cm]{"gradient lstm-vs-mlp"}
+	\caption{The gradient of LSTM(top) and MLP(bottom) network}
+	\label{fig:gradient_mlp_vs_lstm}
+\end{figure}
+
+
+
+
+
+
+
+
+
+
+
+
+
+\begin{thebibliography}{9}
+	
+	\bibitem{CNN_p300} 
+	Cecotti, H., Graser, A.	
+	\textit{Convolutional neural networks for P300 detection with application to brain-computer interfaces}. 
+	IEEE Trans. Pattern Analysis and Machine Intelligence, 2010
+	
+	\bibitem{Blankertz} 
+	Acqualagna L, Blankertz B.
+	\textit{Gaze-independent BCI-spelling using rapid serial visual presentation (RSVP)}. 
+	Clinical Neurophysiology 124 (2013) 901–908
+	
+	\bibitem{AlexGraveBook} 
+	Graves, Alex.
+	\textit{"Supervised sequence labelling." Supervised Sequence Labelling with Recurrent Neural Networks.} Springer Berlin Heidelberg, 2012. 5-13.
+	
+\end{thebibliography}
+
+
+\end{document}          
+
+
